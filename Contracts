@@ -1,0 +1,369 @@
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxPmWf2F7m544Hz68dXkINwWSq3YfRuW8ixDMvjxbstXjCfyz7anzBWAg3TePOYll9tFQ/exec';
+    let allData = [];
+
+    fetch(WEB_APP_URL)
+        .then(response => response.json())
+        .then(data => {
+            allData = data.slice(1);
+            createFranchiseDropdown(allData);
+        })
+        .catch(error => console.error('Error fetching data:', error));
+
+    function createFranchiseDropdown(data) {
+        const dropdown = document.getElementById("franchiseDropdown");
+        const franchises = [...new Set(data.map(row => row[0]))];
+
+        franchises.forEach(franchise => {
+            const option = document.createElement("option");
+            option.value = franchise;
+            option.textContent = franchise;
+            dropdown.appendChild(option);
+        });
+
+        if (franchises.length > 0) {
+            dropdown.value = franchises[0];
+            applyFilters();
+        }
+    }
+
+    function applyFilters() {
+        const selectedFranchise = document.getElementById("franchiseDropdown").value;
+        const filteredData = allData.filter(row => row[0] === selectedFranchise);
+        populateTable(filteredData);
+    }
+
+    function populateTable(data) {
+        const tableBody = document.querySelector("#playerTable tbody");
+        tableBody.innerHTML = "";
+
+        let totalSalary = 0; // Variable to store the total salary of 'Keep' players
+        let totalCapHit = 0; // Variable to store the total cap hit for 'Cut' players
+        let totalResignAmount = 0; // Variable to store the total resign amount for 'Resign' players
+
+        data.forEach(row => {
+            const tr = document.createElement("tr");
+
+            tr.appendChild(createCell(row[0])); // Franchise Name
+            tr.appendChild(createImageCell(`https://www45.myfantasyleague.com/fflnetdynamic2024/63085_franchise_logo${row[1]}.png`)); // Franchise Image
+
+            const playerName = row[2] || '';
+            const position = row[4] || '';
+            const team = row[5] || '';
+            const formattedName = playerName.includes(" ") ? `${playerName.split(" ")[0]} ${playerName.split(" ")[1][0]}.` : playerName;
+            const playerInfoCell = createMultiLineCell(`${formattedName}`, `${position} - ${team}`);
+            tr.appendChild(playerInfoCell);
+
+            tr.appendChild(createImageCell(row[3] || '')); // Player Image
+            tr.appendChild(createCell(formatScore(row[6]))); // Player Score
+            const salaryCell = createCell(formatMoney(row[7])); // Salary
+            tr.appendChild(salaryCell);
+            tr.appendChild(createCell(row[8])); // Contract Year
+            tr.appendChild(createCell(formatMoney(row[9]))); // Cap Hit
+// Resign Length Dropdown
+const resignLengthCell = document.createElement("td");
+const resignLengthDropdown = document.createElement("select");
+
+// Create options for 3, 4, and 5
+[3, 4, 5].forEach(value => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    resignLengthDropdown.appendChild(option);
+});
+resignLengthDropdown.value = row[15] || 3; // Default to the value from row[15] or 3 if not provided
+resignLengthCell.appendChild(resignLengthDropdown);
+tr.appendChild(resignLengthCell);
+
+// Resign Amount Cell (updated based on Resign Length)
+const resignAmountCell = document.createElement("td");
+const updateResignAmount = () => {
+    let resignAmount;
+    const selectedResignLength = parseInt(resignLengthDropdown.value);
+
+    // Adjust the resign amount based on the selected resign length
+    if (selectedResignLength === 3) {
+        resignAmount = row[16];
+    } else if (selectedResignLength === 4) {
+        resignAmount = row[17];
+    } else if (selectedResignLength === 5) {
+        resignAmount = row[18];
+    }
+
+    resignAmountCell.textContent = formatMoney(resignAmount);
+};
+
+// Update the resign amount initially based on the dropdown selection
+updateResignAmount();
+
+// Add event listener to update the resign amount when the dropdown value changes
+resignLengthDropdown.addEventListener('change', updateResignAmount);
+
+tr.appendChild(resignAmountCell);
+
+            tr.appendChild(createCell(row[10])); // Year Acquired
+            tr.appendChild(createCell(row[11])); // Method Acquired
+
+            tr.appendChild(createTierDropdownCell(row[12])); // Tier
+
+            tr.appendChild(createActionDropdown()); // Action Dropdown
+
+            // New columns
+            tr.appendChild(createCell(`${formatMoney(row[7])} (${row[8]} years)`)); // Current Contract
+// New Contract Cell (updated based on Resign Length)
+const newContractCell = document.createElement("td");
+const updateNewContract = () => {
+    let newContract;
+    const selectedResignLength = parseInt(resignLengthDropdown.value);
+
+    // Adjust the new contract value based on the selected resign length
+    if (selectedResignLength === 3) {
+        newContract = `${formatMoney(row[16])} (3 years)`;
+    } else if (selectedResignLength === 4) {
+        newContract = `${formatMoney(row[17])} (4 years)`;
+    } else if (selectedResignLength === 5) {
+        newContract = `${formatMoney(row[18])} (5 years)`;
+    }
+
+    newContractCell.textContent = newContract;
+};
+
+// Update the new contract initially based on the dropdown selection
+updateNewContract();
+
+// Add event listener to update the new contract when the dropdown value changes
+resignLengthDropdown.addEventListener('change', updateNewContract);
+
+tr.appendChild(newContractCell);            tr.appendChild(createCell(formatMoney(row[9]))); // Total Cap Hit
+
+            let isSalaryAdded = false; // Flag to track if salary has been added
+            let isCapHitAdded = false; // Flag to track if cap hit has been added
+            let isResignAdded = false; // Flag to track if resign amount has been added
+
+            // Add total salary calculation for 'Keep' action selection
+            const actionDropdown = tr.querySelector('select[name="action"]');
+            
+            // Initially, calculate salary, cap hit, and resign amount
+            if (actionDropdown.value === 'Keep') {
+                totalSalary += row[7]; // Add salary to total
+                isSalaryAdded = true; // Mark salary as added
+            } else if (actionDropdown.value === 'Cut') {
+                totalCapHit += row[9]; // Add cap hit to total
+                isCapHitAdded = true; // Mark cap hit as added
+            } else if (actionDropdown.value === 'Resign') {
+                totalResignAmount += row[13]; // Add resign amount to total
+                isResignAdded = true; // Mark resign amount as added
+            }
+
+            actionDropdown.addEventListener('change', function() {
+                if (actionDropdown.value === 'Keep' && !isSalaryAdded) {
+                    totalSalary += row[7]; // Add salary to total
+                    isSalaryAdded = true; // Mark salary as added
+                } else if (actionDropdown.value !== 'Keep' && isSalaryAdded) {
+                    totalSalary -= row[7]; // Subtract salary if action changes from 'Keep'
+                    isSalaryAdded = false; // Reset salary added flag
+                }
+
+                if (actionDropdown.value === 'Cut' && !isCapHitAdded) {
+                    totalCapHit += row[9]; // Add cap hit to total
+                    isCapHitAdded = true; // Mark cap hit as added
+                } else if (actionDropdown.value !== 'Cut' && isCapHitAdded) {
+                    totalCapHit -= row[9]; // Subtract cap hit if action changes from 'Cut'
+                    isCapHitAdded = false; // Reset cap hit added flag
+                }
+
+                if (actionDropdown.value === 'Resign' && !isResignAdded) {
+                    totalResignAmount += row[13]; // Add resign amount to total
+                    isResignAdded = true; // Mark resign amount as added
+                } else if (actionDropdown.value !== 'Resign' && isResignAdded) {
+                    totalResignAmount -= row[13]; // Subtract resign amount if action changes from 'Resign'
+                    isResignAdded = false; // Reset resign added flag
+                }
+
+                updateTotalValues(totalSalary, totalCapHit, totalResignAmount); // Update total values dynamically
+            });
+           
+ tr.appendChild(createCell(row[14])); // Method Acquired
+            tr.appendChild(createCell(formatMoney(row[16]))); // Base
+            tr.appendChild(createCell(formatMoney(row[17]))); // Star
+            tr.appendChild(createCell(formatMoney(row[18]))); // Superstar
+            tr.appendChild(createCell(formatMoney(row[18]))); // This Year Salary
+            tr.appendChild(createCell(formatMoney(row[18]))); // This Year Cap Hit
+            tr.appendChild(createCell(formatMoney(row[18]))); // Next Year Salary
+            tr.appendChild(createCell(formatMoney(row[18]))); // Next Year Cap Hit
+            tr.appendChild(createCell(formatMoney(row[18]))); // After Next Year Salary
+            tr.appendChild(createCell(formatMoney(row[18]))); // After Next Year Cap Hit
+
+
+
+            tableBody.appendChild(tr);
+        });
+
+        updateTotalValues(totalSalary, totalCapHit, totalResignAmount); // Update total values dynamically
+        updateSalaryCapBar(totalSalary); // Update salary cap bar dynamically
+    }
+
+   function updateSalaryCapBar(totalSalary) {
+    const salaryCap = 823000000; // Define the salary cap (823 million)
+    const salaryCapBar = document.getElementById("salaryCapBar");
+    const percentage = (totalSalary / salaryCap) * 100; // Calculate the percentage
+    salaryCapBar.style.width = `${percentage}%`; // Update the width of the bar
+}
+
+
+function updateTotalValues(totalSalary, totalCapHit, totalResignAmount) {
+    const salaryCap = 823000000; // $823M Salary Cap
+
+    // Calculate Cap Room
+    const capRoom = salaryCap - totalSalary - totalResignAmount;
+
+    // Calculate Percentages
+    const totalSalaryPercent = (totalSalary / salaryCap) * 100;
+    const totalCapHitPercent = (totalCapHit / salaryCap) * 100;
+    const totalResignPercent = (totalResignAmount / salaryCap) * 100;
+    const capRoomPercent = (capRoom / salaryCap) * 100;
+
+    // Ensure values are within bounds
+    const clamp = (value) => Math.max(0, Math.min(100, value));
+
+    // Update Bar Widths
+    document.getElementById("totalSalaryBar").style.width = `${clamp(totalSalaryPercent)}%`;
+    document.getElementById("totalCapHitBar").style.width = `${clamp(totalCapHitPercent)}%`;
+    document.getElementById("totalResignBar").style.width = `${clamp(totalResignPercent)}%`;
+    document.getElementById("capRoomBar").style.width = `${clamp(capRoomPercent)}%`;
+
+    // Update Text Values
+    document.getElementById("totalSalary").textContent = `${formatMoney(totalSalary)}`;
+    document.getElementById("totalCapHit").textContent = `${formatMoney(totalCapHit)}`;
+    document.getElementById("totalResignAmount").textContent = `${formatMoney(totalResignAmount)}`;
+    document.getElementById("capRoom").textContent = `${formatMoney(capRoom)}`;
+
+    // Update data attributes for tooltip
+    document.getElementById("totalSalaryBar").setAttribute("data-value", formatMoney(totalSalary));
+    document.getElementById("totalCapHitBar").setAttribute("data-value", formatMoney(totalCapHit));
+    document.getElementById("totalResignBar").setAttribute("data-value", formatMoney(totalResignAmount));
+    document.getElementById("capRoomBar").setAttribute("data-value", formatMoney(capRoom));
+}
+
+// Function to format money
+function formatMoney(value) {
+    return `$${(value / 1000000).toFixed(1)}M`; // Converts to millions for readability
+}
+
+// Tooltip logic
+const tooltip = document.getElementById("tooltip");
+
+document.querySelectorAll(".bar").forEach((bar) => {
+    bar.addEventListener("mouseenter", function (event) {
+        tooltip.style.display = "block";
+        tooltip.textContent = `${this.getAttribute("data-label")}: ${this.getAttribute("data-value")}`;
+    });
+
+    bar.addEventListener("mousemove", function (event) {
+        tooltip.style.left = `${event.pageX + 10}px`;
+        tooltip.style.top = `${event.pageY - 10}px`;
+    });
+
+    bar.addEventListener("mouseleave", function () {
+        tooltip.style.display = "none";
+    });
+});
+
+
+function handleResignClick(rowSalary, rowResignAmount, isResign) {
+    // Update totalSalary and totalResignAmount based on the button clicked
+    let newTotalSalary = calculateNewTotalSalary(rowSalary, isResign);
+    let newTotalResignAmount = rowResignAmount;
+
+    // Call the update function with the appropriate parameters
+    updateTotalValues(newTotalSalary, newTotalCapHit, newTotalResignAmount, isResign);
+}
+
+// Example helper function to calculate total salary
+function calculateNewTotalSalary(rowSalary, isResign) {
+    if (isResign) {
+        return rowSalary; // Do not add to total salary for resign
+    } else {
+        return totalSalary + rowSalary; // Normal salary calculation
+    }
+}
+
+
+
+   function formatMoney(value) {
+    if (!value || isNaN(value)) return "$0";
+    let num = Number(value);
+    if (num >= 1000000) {
+        return `$${(num / 1000000).toFixed(1)}M`; // Convert to millions with one decimal place
+    }
+    return `$${num.toLocaleString()}`; // Standard formatting for smaller values
+}
+
+    // Helper function to format score
+    function formatScore(score) {
+        return score.toFixed(2);
+    }
+
+    function createCell(content) {
+        const td = document.createElement("td");
+        td.textContent = content;
+        return td;
+    }
+
+    function createImageCell(src) {
+        const td = document.createElement("td");
+        const img = document.createElement("img");
+        img.src = src;
+        img.alt = "Image";
+        img.style.width = "50px";
+        td.appendChild(img);
+        return td;
+    }
+
+    function createMultiLineCell(content1, content2) {
+        const td = document.createElement("td");
+        td.innerHTML = `${content1}<br>${content2}`;
+        return td;
+    }
+
+    function createTierDropdownCell(tier) {
+        const td = document.createElement("td");
+        const select = document.createElement("select");
+        select.name = "tier";
+        const options = ['1', '2', '3', '4', '5'];
+        options.forEach(option => {
+            const opt = document.createElement("option");
+            opt.value = option;
+            opt.textContent = option;
+            if (option === tier) {
+                opt.selected = true;
+            }
+            select.appendChild(opt);
+        });
+        td.appendChild(select);
+        return td;
+    }
+
+    function createActionDropdown() {
+        const td = document.createElement("td");
+        const select = document.createElement("select");
+        select.name = "action";
+        const options = ['Keep', 'Cut', 'Resign'];
+        options.forEach(option => {
+            const opt = document.createElement("option");
+            opt.value = option;
+            opt.textContent = option;
+            select.appendChild(opt);
+        });
+        td.appendChild(select);
+        return td;
+    }
+
+    function sortTable(columnIndex) {
+        const rows = Array.from(document.querySelector("#playerTable tbody").rows);
+        const sortedRows = rows.sort((rowA, rowB) => {
+            const cellA = rowA.cells[columnIndex].textContent.trim();
+            const cellB = rowB.cells[columnIndex].textContent.trim();
+            return cellA.localeCompare(cellB);
+        });
+        sortedRows.forEach(row => document.querySelector("#playerTable tbody").appendChild(row));
+    }
